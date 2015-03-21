@@ -1,5 +1,6 @@
 /ABCsampler
 /ABCestimator
+/plotPosteriorsGLM.r
 /Worker_SSA_SDM
 /Worker_DAE_IDAS_Dense
 /Evolvix
