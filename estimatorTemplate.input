@@ -1,0 +1,11 @@
+estimationType standard
+simName	out.txt_sampling1.txt
+obsName	data.obs
+params N_PARAMS 
+numRetained 1000
+maxReadSims 1000000
+posteriorDensityPoints 500
+diracPeakWidth 0.01
+writeRetained 1
+obsPValue 1
+trueParamName true_param_vals.txt

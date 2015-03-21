@@ -1,0 +1,10 @@
+samplerType standard
+estName PRIORS_FILE 
+outName out.txt
+obsName data.obs
+nbSims N_SIMS 
+writeHeader 1
+separateOutputFiles 0
+simInputName PARS_FILE 
+simulationProgram /usr/bin/env python 
+simParam SRC_DIR/sim.py#MODEL_NAME#--distance#DISTANCE
