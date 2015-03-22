@@ -1,0 +1,3 @@
+[PARAMETERS]
+//#isInt? #name	#dist.#min	#max	
+0	birthRate	logunif	0.001	1

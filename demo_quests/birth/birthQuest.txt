@@ -1,0 +1,16 @@
+Evolvix Quest birth (Question:"")
+
+Simulate stochastically until 1000
+!L Simulate deterministically until 1000
+
+Initial Amount of myPart = 0
+Initial Amount of birthRatePart = 0.01
+
+Action 1 birth (
+    birthRatePart ---[Rate = 1]---> myPart + birthRatePart
+)
+
+TimeSeries myTS (
+    Report the Amount of Part myPart
+    Report whenever times change by 33.3333333333
+)
