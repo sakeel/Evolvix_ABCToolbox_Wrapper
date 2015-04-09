@@ -77,8 +77,6 @@ def main():
     verifyQuestFilesExist(args.quest)
     validateArgs(args)
     
-    makeTimeStampFile()
-    
     if args.recover:
         htcondorSubmitDAGFile()
         sys.exit(0)
@@ -89,6 +87,7 @@ def main():
     
     if args.htcondor : runOnHTCondor(args)
     else             : runLocally(args)
+
 
 #**********************************************************************#
 def cleanWorkingDir(args):
@@ -120,16 +119,6 @@ def cleanWorkingDir(args):
     for file in listFiles(WRK_DIR) : os.remove(file)
 
 
-#**********************************************************************#
-def makeTimeStampFile():
-    if not os.path.isdir(WRK_DIR): os.mkdir(WRK_DIR)
-    # Create a time stamp file to capture the start time to use as the folder name in the history
-    timeStampFilePath = '{0}/timestamp.txt'.format(WRK_DIR)
-    timestampFile = open(timeStampFilePath, 'w')
-    timestampFile.write(datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M%S'))
-    timestampFile.close()
-
-        
 #**********************************************************************#
 def setUpGlobalVars(questName):
     global QST_NAME
@@ -193,7 +182,7 @@ def validateArgs(args):
 #**********************************************************************#
 def verifyQuestFilesExist(QST_NAME):
     if(not os.path.isdir(QST_DIR)):
-        print('Quest from command line: ' + QST_NAME)
+        print('Quest from command line:'  + QST_NAME)
         print('Error: No associated directory found at ' + QST_DIR)
         raise Exception('Could not find the folder for the ' + QST_NAME + ' quest.')
     if(not os.path.isfile(os.path.join(QST_DIR, QST_NAME + 'Quest.txt'))):
@@ -219,6 +208,10 @@ def runLocally(args):
     if args.estimate or not STAGE_FLAGS_USED:
         # estimate based on the distance of the samples generated
         runEstimator(args.quest)
+
+    #even when using condor, it runs it locally to do the estimation
+    #so taking the snapshot here still works for running on condor
+    takeSnapshot(args)
 
 
 #**********************************************************************#
@@ -560,5 +553,20 @@ def listFiles(dirPath):
 def listDir(dirPath):
     return [os.path.join(dirPath, f) for f in os.listdir(dirPath)]
 
+
+#**********************************************************************#
+def takeSnapshot(args):
+    print('snapshotting!')
+    timeStamp = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
+    snapshotDir = os.path.join(QST_DIR, timeStamp)
+    shutil.copytree(WRK_DIR, snapshotDir)
+    map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
+                                     os.path.join(snapshotDir, file)),
+        ['dist.py', 'plotDistance.r']
+    )
+    with open(os.path.join(snapshotDir, 'args.txt'), 'w') as f:
+        map(lambda arg: f.write((' = ').join(str(x) for x in arg) + '\n'),
+            vars(args).items()
+        ) 
 
 main()
