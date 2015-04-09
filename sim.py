@@ -74,7 +74,8 @@ def parseArgs():
     parser = argparse.ArgumentParser(description='Run a simulation.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('quest', type=str, help='Name of the Quest.')
-    parser.add_argument('--distance', type=str, help='Specify the distance to be used.', default='L2')
+    parser.add_argument('--distance', type=str, help='Distance to use. Options: ' \
+                        + (', ').join(dist.distFuncs.keys()), default='L2')
     return parser.parse_args()
 
 def getParamsArg():

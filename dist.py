@@ -4,14 +4,14 @@ import inspect
 try:
     from rpy2.robjects import r
 except ImportError:
-    print("Could not find rpy2. Error will occur if a distance function uses rpy2.")
+    pass
 
 def L2(obsData, simData):
     dist = 0
     for i in range(0, len(simData)):
         dist += math.pow(simData[i] - obsData[i], 2)
     return dist
-    
+
 def normalizedL2(obsData, simData):
     dist = 0
     for i in range(0, len(obsData)):
@@ -34,6 +34,4 @@ def dissim(obsData, simData):
 
 #the following code needs to be below all function definitions
 funcObjects = inspect.getmembers(sys.modules[__name__], inspect.isfunction)
-distFuncs = {}
-for func in funcObjects:
-   distFuncs[func[0]] = func[1]
+distFuncs = {name: func for name, func in funcObjects}
