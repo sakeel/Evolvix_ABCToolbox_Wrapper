@@ -1,10 +1,6 @@
 import sys
 import inspect
 
-try:
-    from rpy2.robjects import r
-except ImportError:
-    pass
 
 def L2(obsData, simData):
     dist = 0
@@ -25,12 +21,16 @@ def geometric(obsData, simData):
         dist *= max(math.pow((simData[i] - obsData[i]), 2) / z, 1/z)
     return math.pow(dist, 1/len(obsData))
     
-def dissim(obsData, simData):
-    #throws exception if library not found
-    r('suppressMessages(library(TSdist))')
-    dataStrings = list(map(lambda data: ','.join(str(a) for a in data), [obsData, simData]))
-    dist = float(r('dissimDistance(c({}),c({}))'.format(dataStrings[0], dataStrings[1]))[0])
-    return dist
+try:
+    from rpy2.robjects import r
+    def dissim(obsData, simData):
+        #throws exception if library not found
+        r('suppressMessages(library(TSdist))')
+        dataStrings = list(map(lambda data: ','.join(str(a) for a in data), [obsData, simData]))
+        dist = float(r('dissimDistance(c({}),c({}))'.format(dataStrings[0], dataStrings[1]))[0])
+        return dist
+except ImportError:
+    pass
 
 #the following code needs to be below all function definitions
 funcObjects = inspect.getmembers(sys.modules[__name__], inspect.isfunction)
