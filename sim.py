@@ -41,16 +41,12 @@ import os
 import sys
 import glob
 import argparse
-
-try:
-    from rpy2.robjects import r
-except ImportError:
-    print("Could not find rpy2. Error will occur if sim.py uses rpy2.")
+import dist
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 QST_DIR = None
 QUEST_NAME = None
-DISTANCE_FUNC = None
+DIST_FUNC = None
 
 def main():
     args = parseArgs()
@@ -90,19 +86,11 @@ def getParamsArg():
     return '--Change_Model ' + ' '.join(params) 
 
 def setDistanceFunc(funcName):
-    funcs = {
-        'L2': calculateL2Dist,
-        'normalizedL2': calculateNormalizedL2Dist,
-        'geometric': calculateGeometricDist,
-        'dissim': calculateDissimDist
-    }
     try:
-        global DISTANCE_FUNC
-        DISTANCE_FUNC = funcs[funcName]
+        global DIST_FUNC
+        DIST_FUNC = dist.distFuncs[funcName]
     except KeyError:    
-        print('Invalid distance function name: {}'.format(funcName))
-        sys.exit(1)
-
+        raise Exception('Invalid distance function name: {}'.format(funcName))
 
 def getData(filePaths):
     files = map(lambda x: open(x, 'r'), filePaths)
@@ -141,36 +129,10 @@ def getDist(obsData, simData):
         if key == 'Time': continue
         if len(obsData[key]) != len(simData[key]):
             raise Exception("Distance function requires vectors of the same length")
-        distances[key] = DISTANCE_FUNC(obsData[key], simData[key])
+        distances[key] = DIST_FUNC(obsData[key], simData[key])
     dist = 0
     for key in distances:
         dist  += distances[key]
     return dist
 
-def calculateL2Dist(obsData, simData):
-    dist = 0
-    for i in range(0, len(simData)):
-        dist += math.pow(simData[i] - obsData[i], 2)
-    return dist
-    
-def calculateNormalizedL2Dist(obsData, simData):
-    dist = 0
-    for i in range(0, len(obsData)):
-        dist += math.pow(simData[i] - obsData[i], 2) / max(obsData[i], 1)
-    return dist
-    
-def calculateGeometricDist(obsData, simData):
-    dist = 1
-    for i in range(0, len(obsData)):
-        z = max(obsData[i],1)
-        dist *= max(math.pow((simData[i] - obsData[i]), 2) / z, 1/z)
-    return math.pow(dist, 1/len(obsData))
-    
-def calculateDissimDist(obsData, simData):
-    #throws exception if library not found
-    r('suppressMessages(library(TSdist))')
-    dataStrings = list(map(lambda data: ','.join(str(a) for a in data), [obsData, simData]))
-    dist = float(r('dissimDistance(c({}),c({}))'.format(dataStrings[0], dataStrings[1]))[0])
-    return dist
- 
 main()
