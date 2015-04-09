@@ -41,7 +41,11 @@ import os
 import sys
 import glob
 import argparse
-from rpy2.robjects import r
+
+try:
+    from rpy2.robjects import r
+except ImportError:
+    print("Could not find rpy2. Error will occur if sim.py uses rpy2.")
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 QST_DIR = None
