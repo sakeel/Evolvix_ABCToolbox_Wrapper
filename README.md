@@ -38,50 +38,84 @@ Setup
 
 Make sure the latest versions of [R](http://www.r-project.org) and
 [Python](http://www.python.org) are installed. Also install the required *rpy2*
-python module by running:
+python module by first running:
 
-        curl -O http://bootstrap.pypa.io/get-pip.py &&\
+        cd .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper
+
+Then running:
+
+        curl -O https://bootstrap.pypa.io/get-pip.py &&\
         sudo python get-pip.py && sudo pip install rpy2
 
 Test the *rpy2* installation by running the following:
 
         python -c "import rpy2"
 
-If the command returns with no output shown, then *rpy2*
-was successfully installed. Next, go into the Evolvix repository and build
-*Evolvix_ABCToolbox_Wrapper*. Go to
-*.../Evolvix/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0/abc*. Now you are
-all set to run ABC. Try running ABC on the birth model to test the build:
+If the command returns with no output shown, then *rpy2* was successfully
+installed. 
 
+Next, go into the Evolvix repository and run *Evolvix_ABCToolbox_Wrapper*:
+
+        cd .../[EVOLVIX_HOME]/Scripts
+        python EvolvixDevelopmentAutomation.py --clean
+        cd ../Build && make Evolvix_ABCToolbox_Wrapper
+
+ Go to the ABC working directory:
+ 
+        cd  .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0/
+        
+Now you are all set to run ABC.  Try running ABC on the birth model to test the
+build in the folder above::
+    
         ./run.py birth -n 200 -c 2
 
-The PDF with the posterior should appear in
-*.../abc/quests/birth/Working/estimate*.
+The PDF with the posterior should appear in::
 
+        .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/quests/birth/Working/estimate
 
 Adding a new model
 -------------------
-The models (also known as quests) are in the *quests* directory. Whenever you
-add a new one, make a new directory in the *quests directory* with the **same
-name as the quest**. Every new quest directory requires the "experimental" data,
-a *.est* file with priors, and an Evolvix quest file. Documentation on the
-*.est* file is in the ABCToolbox documentation.
+The models (also known as Quests) are in the following folder:
 
+        cd EvolvixHome cd ./Build/Packages/Evolvix_ABCToolbox_Wrapper/quests
+        
+Whenever you add a new Quest, you make a folder with the  **same name as the
+quest**:
+
+        mkdir [QUEST_NAME]
+
+Every new quest directory requires 
+
+* [QUEST_NAME]Data.txt 
+* [QUEST_NAME]Priors.est (see ABCToolbox documentation for info on this file)
+* [QUEST_NAME]Quest.txt
+    
+Here is an example directory with all the necessary files: cd
+.../[EVOLVIX_HOME]/Packages/Evolvix_ABCToolbox_Wrapper/demo_quests/birth
 
 Getting parameter estimates
 ---------------------------
 
 To get parameter estimates, first go to the *run_abc* directory. Make sure there
 is an Evolvix binary in that directory. *run.py* is the entry point to parameter
-estimation. *sim.py* is just used to run a single simulation. Many of the ABC
-settings are changed by editing either *estimatorTemplate.input* or
-*samplerTemplate.input*. For more information on the *.input* files, see the
-ABCToolbox documentation.
+estimation. *sim.py* is just used to run a single simulation. 
+
+Many of the ABC settings are changed by editing either *estimatorTemplate.input*
+or *samplerTemplate.input*. Those files are found in 
+
+    .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0/samplerTemplate.input
+      
+which get automatically copied to the following results location:
+
+    .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/quests/[QUEST_NAME]/Working
+
+For more information on the *.input* files, see the ABCToolbox documentation.
 
 Settings such as the number of jobs, number of simulations, and which quest to
 use are set via the command-line options of *run.py*. To get help with the
 options, run
 
+        cd .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0
         ./run.py --help
 
 Typically, the only options you need to set are <code>-n</code>,
@@ -93,3 +127,17 @@ argument. Here is an example command:
 That command runs ABC on the birth model with 10 jobs and 10,000 simulations. To
 use *HTCondor*, just add <code>-htcondor</code>. However, to use *HTCondor*, you
 need to be on a computer that is capable of submitting *HTCondor* jobs.
+
+Running on Condor
+---------------------------
+
+    ./run.py birth -n 10000 -c 10 --htcondor
+
+Currently, Condor runs into an error while generating the posterior plots. You
+just need to manually generate them by running the following after all of the
+condor jobs are completed:
+
+    ./run.py birth --estimate --combine
+
+If you run <code>condor_q</code> and do not see any of your jobs, then they are
+completed.
