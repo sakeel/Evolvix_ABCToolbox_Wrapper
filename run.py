@@ -48,6 +48,8 @@ from datetime import datetime
 from glob import glob
 from multiprocessing import Process
 
+import dist
+
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 QST_NAME = None
 QST_DIR = None
@@ -153,8 +155,8 @@ def parseArgs():
     parser.add_argument('--estimate', help='Use an existing sample file to estimate parameters.', action="store_true")
     parser.add_argument('--recover', help='Tries to recover in case of early termination. Valid only with runs using --htcondor', action='store_true')
     parser.add_argument('--test', help='Test configuration, Quest file processing, and generate files. Exits prior to any other action.', action='store_true')
-    parser.add_argument('--distance', type=str, help='Specify the distance to be used. Options: '
-                        'L2, normalizedL2, geometric, dissim', default='L2')
+    parser.add_argument('--distance', type=str, help='Distance to use. Options: ' \
+                        + (', ').join(dist.distFuncs.keys()), default='L2')
     parser.add_argument('-n', type=int, help='Number of simulations.')
     parser.add_argument('-c', type=int, help='Number of cores.', default=1)
     parser.add_argument('quest', type=str, help='Name of the quest')
