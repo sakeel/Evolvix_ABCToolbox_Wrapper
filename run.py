@@ -559,7 +559,7 @@ def listDir(dirPath):
 #**********************************************************************#
 def takeSnapshot(args):
     print('snapshotting!')
-    timeStamp = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
+    timeStamp = datetime.fromtimestamp(time.time()).strftime('{0}_%Y-%m-%d_%Hh%Mm%Ss'.format(QST_NAME))
     snapshotDir = os.path.join(QST_DIR, timeStamp)
     shutil.copytree(WRK_DIR, snapshotDir)
     map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
