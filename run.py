@@ -516,10 +516,10 @@ def writeTrueParamValsFile(questPath, path):
     paramNames = params.keys()
     with open(path, 'w') as f:
         for name in paramNames:
-            f.write('{}\t'.format(name))
+            f.write('{0}\t'.format(name))
         f.write('\n')
         for name in paramNames:
-            f.write('{}\t'.format(params[name]))
+            f.write('{0}\t'.format(params[name]))
         f.write('\n')
 
 #**********************************************************************#
@@ -559,7 +559,7 @@ def listDir(dirPath):
 #**********************************************************************#
 def takeSnapshot(args):
     print('snapshotting!')
-    timeStamp = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
+    timeStamp = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
     snapshotDir = os.path.join(QST_DIR, timeStamp)
     shutil.copytree(WRK_DIR, snapshotDir)
     map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),

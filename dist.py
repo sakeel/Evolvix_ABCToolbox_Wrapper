@@ -1,4 +1,5 @@
 import sys
+import math
 import inspect
 
 
@@ -20,7 +21,7 @@ def geometric(obsData, simData):
         z = max(obsData[i],1)
         dist *= max(math.pow((simData[i] - obsData[i]), 2) / z, 1/z)
     return math.pow(dist, 1/len(obsData))
-    
+
 try:
     from rpy2.robjects import r
     def dissim(obsData, simData):
@@ -34,4 +35,6 @@ except ImportError:
 
 #the following code needs to be below all function definitions
 funcObjects = inspect.getmembers(sys.modules[__name__], inspect.isfunction)
-distFuncs = {name: func for name, func in funcObjects}
+distFuncs = {}
+for name, func in funcObjects:
+    distFuncs[name] = func;

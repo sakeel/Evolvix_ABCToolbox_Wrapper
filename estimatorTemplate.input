@@ -2,7 +2,7 @@ estimationType standard
 simName	out.txt_sampling1.txt
 obsName	data.obs
 params N_PARAMS 
-numRetained 200
+numRetained 10
 maxReadSims 1000000
 posteriorDensityPoints 500
 diracPeakWidth 0.01
