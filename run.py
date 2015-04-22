@@ -68,18 +68,27 @@ STAGE_FLAGS_USED = False
 
 #**********************************************************************#
 def main():
-    print('Starting run.py')
+    print('Starting run.py.')
     args = parseArgs();
-    
+
+    global QST_NAME
+    global QST_DIR
+    QST_NAME = args.quest 
+    QST_DIR = os.path.abspath('{0}/../quests/{1}'.format(BIN_DIR, QST_NAME))
+
+    global WRK_DIR
+    #evaluates to true just when we are running the Condor post-script to estimate and combine
+    if args.working_dir:
+        WRK_DIR = args.working_dir
+    else:
+        WRK_DIR = takeSnapshot(args)
+
     global DISTANCE
     DISTANCE = args.distance
-    setUpGlobalVars(args.quest)
-    
-    cleanWorkingDir(args)
-
+    setUpGlobalVars()
     verifyQuestFilesExist(args.quest)
     validateArgs(args)
-    
+
     if args.recover:
         htcondorSubmitDAGFile()
         sys.exit(0)
@@ -93,70 +102,17 @@ def main():
 
 
 #**********************************************************************#
-def cleanWorkingDir(args):
-    if not os.path.isdir(WRK_DIR):
-        os.mkdir(WRK_DIR)
-        return
-    
-    noCleaning = False
-    cleanUpSampleDir = True
-    cleanUpSampleFiles = True
-    cleanUpEstimateDir = True
-    
-    if (args.recover)     : noCleaning         = True
-    if (args.add_samples) : cleanUpSampleFiles = False
-    if (args.estimate)    : cleanUpSampleFiles = False
-    if (args.combine)     : cleanUpSampleDir   = False
-        
-    if (noCleaning) : return
-    
-    if cleanUpSampleFiles and cleanUpSampleDir and cleanUpEstimateDir:
-        cleanDir(WRK_DIR)
-        return
-        
-    if cleanUpSampleDir : cleanSampleDir(not cleanUpSampleFiles)
-
-    if cleanUpEstimateDir : cleanDir(EST_DIR)
-
-    for file in listFiles(WRK_DIR) : os.remove(file)
-
-
-#**********************************************************************#
-def setUpGlobalVars(questName):
-    global QST_NAME
-    global QST_DIR
-    global HST_DIR
-    global WRK_DIR
-    global SAM_DIR
-    global SAM_FILE
-    global EST_DIR
-    global DAG_DIR
-    global DAG_FILE
-
-    QST_NAME = questName 
-    QST_DIR = os.path.abspath('{0}/../quests/{1}'.format(BIN_DIR, QST_NAME))
-    HST_DIR = os.path.join(QST_DIR, 'History')
-    WRK_DIR = os.path.join(QST_DIR, 'Working')
-    SAM_DIR = os.path.join(WRK_DIR, 'sample')
-    EST_DIR = os.path.join(WRK_DIR, 'estimate')
-    DAG_DIR = os.path.join(WRK_DIR, 'dag')
-    DAG_FILE = os.path.join(DAG_DIR, QST_NAME + '.dag')
-    SAM_FILE = os.path.join(SAM_DIR, SAM_FILE_NAME)
-
-
-#**********************************************************************#
 def parseArgs():
     parser = argparse.ArgumentParser(description='Run ABC.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--htcondor', help='Run the simulations on HTCondor', action='store_true')
     parser.add_argument('--sample', help='Generate the samples only.', action='store_true')
-    parser.add_argument('--add-samples', help='Run like usual, but don\'t clean the old samples out, just add the new samples to them.', action='store_true')
     parser.add_argument('--combine', help='Won\'t generate samples, just combines any existing samples into the sample file.', action='store_true')
     parser.add_argument('--estimate', help='Use an existing sample file to estimate parameters.', action="store_true")
     parser.add_argument('--recover', help='Tries to recover in case of early termination. Valid only with runs using --htcondor', action='store_true')
-    parser.add_argument('--test', help='Test configuration, Quest file processing, and generate files. Exits prior to any other action.', action='store_true')
     parser.add_argument('--distance', type=str, help='Distance to use. Options: ' \
                         + (', ').join(dist.distFuncs.keys()), default='L2')
+    parser.add_argument('--working-dir', type=str, help='Specify a working directory to use. Overrides use of a timestamp.')
     parser.add_argument('-n', type=int, help='Number of simulations.')
     parser.add_argument('-c', type=int, help='Number of cores.', default=1)
     parser.add_argument('quest', type=str, help='Name of the quest')
@@ -165,20 +121,50 @@ def parseArgs():
 
 
 #**********************************************************************#
-def validateArgs(args):
-    global STAGE_FLAGS_USED
-    STAGE_FLAGS_USED =  (args.sample or args.combine or args.estimate)
-    if args.sample or not STAGE_FLAGS_USED:
-        if args.n <= 0: raise Exception('Number of simulations must be greater than zero.')
-        if args.c <= 0: raise Exception('Number of cores must be greater than zero.')
-    if (args.htcondor and not args.sample and (args.combine or args.estimate)):
-        raise Exception('--htcondor can not be used with flags --combine or --estimate. Just remove the --htcondor flag and run either or both of those stages locally (assuming sampling is already complete).')
-    if (args.recover and STAGE_FLAGS_USED):
-        raise Exception('--recover can not be used with other stage flags (e.g. --sample, --combine, or --estimate)')
-    if (args.recover and not os.path.isfile('{0}/{1}.dag'.format(DAG_DIR,args.quest))):
-        raise Exception('--recover can only be used with quests with an existing dag file. No existing dag file found.')
-    if (args.estimate and (not (args.sample or args.combine) or os.path.isfile('{0}/samples.txt'.format(DAG_DIR,args.quest)))):
-        raise Exception('--estimate requires samples to have already been generated or to be called with an action that will generate samples.')
+def takeSnapshot(args):
+    print('Taking a snapshot.')
+    timeStamp = datetime.fromtimestamp(time.time()).strftime('{0}_%Y-%m-%d_%Hh%Mm%Ss'.format(QST_NAME))
+    snapshotDir = os.path.join(QST_DIR, timeStamp)
+
+    #fail if snapshotdirAlready exists, just wait a second to run run.py again
+    try:
+        os.mkdir(snapshotDir)
+    except OSError:
+        raise Exception('The directory ' + snapshotDir + ' already exists.'
+                        'Wait at least 1 second between run.py commands.')
+
+    map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
+                                     os.path.join(snapshotDir, file)),
+        ['dist.py', 'plotDistance.r']
+    )
+    relQuestPath = os.path.join('..', 'quests', QST_NAME, QST_NAME + 'Quest.txt')
+    shutil.copyfile(relQuestPath, os.path.join(snapshotDir, QST_NAME + 'Quest.txt'))
+
+    with open(os.path.join(snapshotDir, 'args.txt'), 'w') as f:
+        map(lambda arg: f.write((' = ').join(str(x) for x in arg) + '\n'),
+            vars(args).items()
+        ) 
+    return snapshotDir
+
+
+
+#**********************************************************************#
+
+
+def setUpGlobalVars():
+    global HST_DIR
+    global SAM_DIR
+    global SAM_FILE
+    global EST_DIR
+    global DAG_DIR
+    global DAG_FILE
+
+    HST_DIR = os.path.join(QST_DIR, 'History')
+    SAM_DIR = os.path.join(WRK_DIR, 'sample')
+    EST_DIR = os.path.join(WRK_DIR, 'estimate')
+    DAG_DIR = os.path.join(WRK_DIR, 'dag')
+    DAG_FILE = os.path.join(DAG_DIR, QST_NAME + '.dag')
+    SAM_FILE = os.path.join(SAM_DIR, SAM_FILE_NAME)
 
 
 #**********************************************************************#
@@ -200,6 +186,24 @@ def verifyQuestFilesExist(QST_NAME):
         print('Error: No priors file found found at: ' + os.path.join(QST_DIR, QST_NAME + 'Priors.est'))
         raise Exception('Could not find the priors file for the ' + QST_NAME + ' quest.')
 
+
+#**********************************************************************#
+def validateArgs(args):
+    global STAGE_FLAGS_USED
+    STAGE_FLAGS_USED =  (args.sample or args.combine or args.estimate)
+    if args.sample or not STAGE_FLAGS_USED:
+        if args.n <= 0: raise Exception('Number of simulations must be greater than zero.')
+        if args.c <= 0: raise Exception('Number of cores must be greater than zero.')
+    if (args.htcondor and not args.sample and (args.combine or args.estimate)):
+        raise Exception('--htcondor can not be used with flags --combine or --estimate. Just remove the --htcondor flag and run either or both of those stages locally (assuming sampling is already complete).')
+    if (args.recover and STAGE_FLAGS_USED):
+        raise Exception('--recover can not be used with other stage flags (e.g. --sample, --combine, or --estimate)')
+    if (args.recover and not os.path.isfile('{0}/{1}.dag'.format(DAG_DIR,args.quest))):
+        raise Exception('--recover can only be used with quests with an existing dag file. No existing dag file found.')
+    if (args.estimate and (not (args.sample or args.combine) or os.path.isfile('{0}/samples.txt'.format(DAG_DIR,args.quest)))):
+        raise Exception('--estimate requires samples to have already been generated or to be called with an action that will generate samples.')
+
+
 #**********************************************************************#
 def runLocally(args):
     if args.sample or not STAGE_FLAGS_USED:
@@ -213,7 +217,6 @@ def runLocally(args):
 
     #even when using condor, it runs it locally to do the estimation
     #so taking the snapshot here still works for running on condor
-    takeSnapshot(args)
 
 
 #**********************************************************************#
@@ -426,8 +429,8 @@ def htcondorGenerateSampleJobLines(QST_NAME, nCores):
 
 #**********************************************************************#
 def htcondorGenerateEstimateJobLines(QST_NAME):
-
-    return '\nSCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py --combine --estimate {1}\n'.format(BIN_DIR, QST_NAME)
+    return '\nSCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py '\
+           '--combine --estimate {1} --working-dir {2}\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
 
 
 #**********************************************************************#
@@ -558,24 +561,5 @@ def listFiles(dirPath):
 def listDir(dirPath):
     return [os.path.join(dirPath, f) for f in os.listdir(dirPath)]
 
-
-#**********************************************************************#
-def takeSnapshot(args):
-    print('snapshotting!')
-    timeStamp = datetime.fromtimestamp(time.time()).strftime('{0}_%Y-%m-%d_%Hh%Mm%Ss'.format(QST_NAME))
-    snapshotDir = os.path.join(QST_DIR, timeStamp)
-    shutil.copytree(WRK_DIR, snapshotDir)
-
-    map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
-                                     os.path.join(snapshotDir, file)),
-        ['dist.py', 'plotDistance.r']
-    )
-    relQuestPath = os.path.join('..', 'quests', QST_NAME, QST_NAME + 'Quest.txt')
-    shutil.copyfile(relQuestPath, os.path.join(snapshotDir, QST_NAME + 'Quest.txt'))
-
-    with open(os.path.join(snapshotDir, 'args.txt'), 'w') as f:
-        map(lambda arg: f.write((' = ').join(str(x) for x in arg) + '\n'),
-            vars(args).items()
-        ) 
 
 main()
