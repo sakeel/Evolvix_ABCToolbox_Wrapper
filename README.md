@@ -133,11 +133,5 @@ Running on Condor
 
     ./run.py birth -n 10000 -c 10 --htcondor
 
-Currently, Condor runs into an error while generating the posterior plots. You
-just need to manually generate them by running the following after all of the
-condor jobs are completed:
-
-    ./run.py birth --estimate --combine
-
 If you run <code>condor_q</code> and do not see any of your jobs, then they are
 completed.

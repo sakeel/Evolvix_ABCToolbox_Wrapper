@@ -68,6 +68,7 @@ STAGE_FLAGS_USED = False
 
 #**********************************************************************#
 def main():
+    print('Starting run.py')
     args = parseArgs();
     
     global DISTANCE
@@ -93,7 +94,6 @@ def main():
 
 #**********************************************************************#
 def cleanWorkingDir(args):
-
     if not os.path.isdir(WRK_DIR):
         os.mkdir(WRK_DIR)
         return
@@ -415,6 +415,7 @@ def htcondorGenerateSampleJobLines(QST_NAME, nCores):
 
     inputFiles  = ','.join(listFiles(SAM_DIR)) 
     inputFiles += ',{0}/sim.py'.format(BIN_DIR)
+    inputFiles += ',{0}/dist.py'.format(BIN_DIR)
     inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
     inputFiles += ',{0}/Worker_SSA_SDM'.format(BIN_DIR)
 
@@ -452,17 +453,19 @@ def htcondorSubmitDAGFile():
 
 #**********************************************************************#
 def combineSamples():
-
+    print('combining all of the samples in the file ' + SAM_FILE)
     if os.path.isfile(SAM_FILE) : combinedSamplesFile = open(SAM_FILE, 'a')
     
     sampleFiles = {}    
+    f = 'out.txt_sampling1.txt'
     if os.path.isdir(SAM_DIR):
-        f = 'out.txt_sampling1.txt'
         sampleFiles = [os.path.join(dir,f) for dir in listDirs(SAM_DIR) if os.path.isfile(os.path.join(dir, f))] 
 
-    for sampleFile in sampleFiles:
-        if not os.path.isfile(SAM_FILE):
-        # If the combined sample doesn't exist yet, copy over the first sample file to use
+    if not os.path.isfile(SAM_FILE):
+        if len(sampleFiles) == 0:
+            raise Exception('Could not find any samples. Check for ' + f + ' in the numbered jobs directories.')
+        for sampleFile in sampleFiles:
+            # If the combined sample doesn't exist yet, copy over the first sample file to use
             shutil.copyfile(sampleFile, SAM_FILE)
             combinedSamplesFile = open(SAM_FILE, 'a')
 
@@ -475,6 +478,7 @@ def combineSamples():
 
         # Rename the file in case something goes wrong later, so we don't duplicate samples on the next combine
         os.rename(sampleFile, 'processed_out.txt_sampling1.txt')
+    print('done combining the samples')
 
 
 #**********************************************************************#
@@ -524,7 +528,6 @@ def writeTrueParamValsFile(questPath, path):
 
 #**********************************************************************#
 def cleanSampleDir(saveTopLevelFiles=False):
-
     if saveTopLevelFiles : map(lambda dir: removeFSObject(dir), listDirs(SAM_DIR))
     else : cleanDir(SAM_DIR) 
 
@@ -562,10 +565,14 @@ def takeSnapshot(args):
     timeStamp = datetime.fromtimestamp(time.time()).strftime('{0}_%Y-%m-%d_%Hh%Mm%Ss'.format(QST_NAME))
     snapshotDir = os.path.join(QST_DIR, timeStamp)
     shutil.copytree(WRK_DIR, snapshotDir)
+
     map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
                                      os.path.join(snapshotDir, file)),
         ['dist.py', 'plotDistance.r']
     )
+    relQuestPath = os.path.join('..', 'quests', QST_NAME, QST_NAME + 'Quest.txt')
+    shutil.copyfile(relQuestPath, os.path.join(snapshotDir, QST_NAME + 'Quest.txt'))
+
     with open(os.path.join(snapshotDir, 'args.txt'), 'w') as f:
         map(lambda arg: f.write((' = ').join(str(x) for x in arg) + '\n'),
             vars(args).items()
