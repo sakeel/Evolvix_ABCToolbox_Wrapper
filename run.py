@@ -68,7 +68,7 @@ STAGE_FLAGS_USED = False
 
 #**********************************************************************#
 def main():
-    print('Starting run.py.')
+    print('Starting run.py')
     args = parseArgs();
 
     global QST_NAME
@@ -122,7 +122,7 @@ def parseArgs():
 
 #**********************************************************************#
 def takeSnapshot(args):
-    print('Taking a snapshot.')
+    print('taking a snapshot')
     timeStamp = datetime.fromtimestamp(time.time()).strftime('{0}_%Y-%m-%d_%Hh%Mm%Ss'.format(QST_NAME))
     snapshotDir = os.path.join(QST_DIR, timeStamp)
 
@@ -135,7 +135,7 @@ def takeSnapshot(args):
 
     map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
                                      os.path.join(snapshotDir, file)),
-        ['dist.py', 'plotDistance.r']
+        ['dist.py', 'plotDistance.r', 'plotPosteriorsGLM.r', 'sim.py', 'run.py']
     )
     relQuestPath = os.path.join('..', 'quests', QST_NAME, QST_NAME + 'Quest.txt')
     shutil.copyfile(relQuestPath, os.path.join(snapshotDir, QST_NAME + 'Quest.txt'))
