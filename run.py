@@ -62,6 +62,9 @@ EST_DIR = None
 SAM_FILE = None
 SAM_FILE_NAME = 'samples.txt'
 DISTANCE = None
+N_SIMS = None
+PERCENT_RETAINED = None
+PEAK_WIDTH = None
 
 STAGE_FLAGS_USED = False
 
@@ -88,6 +91,15 @@ def main():
     setUpGlobalVars()
     verifyQuestFilesExist(args.quest)
     validateArgs(args)
+    
+    global N_SIMS
+    N_SIMS = args.n
+
+    global PERCENT_RETAINED
+    PERCENT_RETAINED = args.r
+
+    global PEAK_WIDTH
+    PEAK_WIDTH = args.p
 
     if args.recover:
         htcondorSubmitDAGFile()
@@ -115,6 +127,8 @@ def parseArgs():
     parser.add_argument('--working-dir', type=str, help='Specify a working directory to use. Overrides use of a timestamp.')
     parser.add_argument('-n', type=int, help='Number of simulations.')
     parser.add_argument('-c', type=int, help='Number of cores.', default=1)
+    parser.add_argument('-r', type=int, help='Percentage of simulations retained (see "numRetained" in ABCToolbox manual.', default=20)
+    parser.add_argument('-p', type=float, help='See "diracPeakWidth" in ABCToolbox manual.', default=20)
     parser.add_argument('quest', type=str, help='Name of the quest')
     args = parser.parse_args()
     return args
@@ -341,6 +355,10 @@ def runEstimator(QST_NAME):
 #**********************************************************************#
 def writeEstimatorFile(QST_NAME):
     replacements = {'N_PARAMS' : ','.join(map(str, range(2, getNumParams(QST_NAME)+2)))}
+    replacements['N_SIMS'] = str(N_SIMS)
+    replacements['N_RETAINED'] = str(round(PERCENT_RETAINED/100.0*N_SIMS))
+    replacements['PEAK_WIDTH'] = str(PEAK_WIDTH)
+
     inputFilePath = os.path.join(EST_DIR, QST_NAME + 'Estimator.input')
     writeInputFile(BIN_DIR + '/estimatorTemplate.input', inputFilePath, replacements)
     return os.path.basename(inputFilePath)
@@ -359,7 +377,7 @@ def callEstimator(estimatorFileName):
 
     try:
         subprocess.check_call([BIN_DIR + '/ABCestimator', estimatorFileName], cwd=EST_DIR, stdin=None, stdout=None, stderr=None, shell=False)
-    except subprocess.CalledPocessError:
+    except subprocess.CalledProcessError:
         raise Exception('ABCestimator exited with an error.')
     except OSError:
         raise Exception('ABCestimator was not found at: ' + BIN_DIR + '/ABCestimator')
