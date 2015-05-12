@@ -1,0 +1,131 @@
+<h1>Evolvix ABCtoolbox Wrapper</h1>
+<p>An automation pipeline for parameter estimation in Evolvix using the ABCtoolbox
+project from Wegmann D, Leuenberger C , Neuenschwander S &amp; Excoffier L
+(2010) ABCtoolbox: a versatile toolkit for approximate Bayesian computations.
+BMC Bioinformatics 11: 116</p>
+<p>The scripts contained herein are thus far a collaboration between Kurt Ehlert
+and Seth Keel. Kurt focused on the parameter estimation workflow and Seth
+focused on the distributed computing aspect, but the lines are blurry. We're
+migrating from an existing repo and losing our history, so contact me (Seth) if
+you have any questions and I'll redirect you as necessary.</p>
+<p>The fork of the ABCToolbox project, which is what this pipeline uses, can be
+found at: https://github.com/sakeel/ABCtoolbox</p>
+<p>Build the ABCToolbox binaries and put the binaries directly in the root of this
+project. You also will need to move the plotPosteriorsGLM.r file from the script
+directory into the root of this project.</p>
+<p>Evolvix will eventually be open-sourced as well. For now just grab the main
+Evolvix binary and the worker binaries and put them directly in the root of this
+project. Evolvix binaries can be found here: http://evolvix.org/</p>
+<p>The scripts in this repo will run ABCToolbox using Evolvix quests in parallel
+locally or on HTCondor (http://research.cs.wisc.edu/htcondor/) if it is
+available on the local system.</p>
+<p>This is kind of a kludgy hack for our internal use. We'll refine it into
+something more useable for others over time. More documentation will also
+follow. For now, if you're having trouble, contact me and I'll help get you
+going.</p>
+<h2>Setup</h2>
+<p>Make sure the latest versions of <a href="http://www.r-project.org">R</a> and
+<a href="http://www.python.org">Python</a> are installed. Also install the required <em>rpy2</em>
+python module by first running:</p>
+<pre><code>    cd .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper
+</code></pre>
+<p>Then running:</p>
+<pre><code>    curl -O https://bootstrap.pypa.io/get-pip.py &amp;&amp;\
+    sudo python get-pip.py &amp;&amp; sudo pip install rpy2
+</code></pre>
+<p>Test the <em>rpy2</em> installation by running the following:</p>
+<pre><code>    python -c "import rpy2"
+</code></pre>
+<p>If the command returns with no output shown, then <em>rpy2</em> was successfully
+installed. </p>
+<p>Next, go into the Evolvix repository and run <em>Evolvix_ABCToolbox_Wrapper</em>:</p>
+<pre><code>    cd .../[EVOLVIX_HOME]/Scripts
+    python EvolvixDevelopmentAutomation.py --clean
+    cd ../Build &amp;&amp; make Evolvix_ABCToolbox_Wrapper
+</code></pre>
+<p>Go to the ABC working directory:</p>
+<pre><code>    cd  .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0/
+</code></pre>
+<p>Now you are all set to run ABC.  Try running ABC on the birth model to test the
+build in the folder above::</p>
+<pre><code>    ./run.py birth -n 200 -c 2
+</code></pre>
+<p>The PDF with the posterior should appear in::</p>
+<pre><code>    .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/quests/birth/Working/estimate
+</code></pre>
+<h2>Adding a new model</h2>
+<p>The models (also known as Quests) are in the following folder:</p>
+<pre><code>    cd EvolvixHome cd ./Build/Packages/Evolvix_ABCToolbox_Wrapper/quests
+</code></pre>
+<p>Whenever you add a new Quest, you make a folder with the  <strong>same name as the
+quest</strong>:</p>
+<pre><code>    mkdir [QUEST_NAME]
+</code></pre>
+<p>Every new quest directory requires </p>
+<ul>
+<li>[QUEST_NAME]Data.txt </li>
+<li>[QUEST_NAME]Priors.est (see ABCToolbox documentation for info on this file)</li>
+<li>[QUEST_NAME]Quest.txt</li>
+</ul>
+<p>Here is an example directory with all the necessary files: cd
+.../[EVOLVIX_HOME]/Packages/Evolvix_ABCToolbox_Wrapper/demo_quests/birth</p>
+<h2>Getting parameter estimates</h2>
+<p>To get parameter estimates, first go to the <em>run_abc</em> directory. Make sure there
+is an Evolvix binary in that directory. <em>run.py</em> is the entry point to parameter
+estimation. <em>sim.py</em> is just used to run a single simulation. </p>
+<p>Many of the ABC settings are changed by editing either <em>estimatorTemplate.input</em>
+or <em>samplerTemplate.input</em>. Those files are found in </p>
+<pre><code>.../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0/samplerTemplate.input
+</code></pre>
+<p>which get automatically copied to the following results location:</p>
+<pre><code>.../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/quests/[QUEST_NAME]/Working
+</code></pre>
+<p>For more information on the <em>.input</em> files, see the ABCToolbox documentation.</p>
+<p>Settings such as the number of jobs, number of simulations, and which quest to
+use are set via the command-line options of <em>run.py</em>. To get help with the
+options, run</p>
+<pre><code>    cd .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0
+    ./run.py --help
+</code></pre>
+<p>Typically, the only options you need to set are <code>-n</code>,
+<code>-c</code>, and the quest name. The quest name argument is a positional
+argument. Here is an example command:</p>
+<pre><code>    ./run.py birth -n 10000 -c 10
+</code></pre>
+<p>That command runs ABC on the birth model with 10 jobs and 10,000 simulations. To
+use <em>HTCondor</em>, just add <code>-htcondor</code>. However, to use <em>HTCondor</em>, you
+need to be on a computer that is capable of submitting <em>HTCondor</em> jobs.</p>
+<h2>Running on Condor</h2>
+<pre><code>./run.py birth -n 10000 -c 10 --htcondor
+</code></pre>
+<p>If you run <code>condor_q</code> and do not see any of your jobs, then they are
+completed.</p>
+<h2>run.py help menu</h2>
+<p>usage: run.py [-h] [--htcondor] [--sample] [--combine] [--estimate]
+              [--recover] [--distance DISTANCE] [--working-dir WORKING_DIR]
+              [-n N] [-c C] [-r R] [-p P]
+              quest</p>
+<p>Run ABC.</p>
+<p>positional arguments:</p>
+<p>quest                 Name of the quest</p>
+<p>optional arguments:</p>
+<p>-h, --help            show this help message and exit</p>
+<p>--htcondor            Run the simulations on HTCondor (default: False)</p>
+<p>--sample              Generate the samples only. (default: False)</p>
+<p>--combine             Won't generate samples, just combines any existing
+                      samples into the sample file. (default: False)</p>
+<p>--estimate            Use an existing sample file to estimate parameters.
+                      (default: False)</p>
+<p>--recover             Tries to recover in case of early termination. Valid
+                      only with runs using --htcondor (default: False)</p>
+<p>--distance DISTANCE   Distance to use. Options: geometric, L2, normalizedL2
+                      (default: L2)</p>
+<p>--working-dir WORKING_DIR
+                      Specify a working directory to use. Overrides use of a
+                      timestamp. (default: None)</p>
+<p>-n N                  Number of simulations. (default: None)</p>
+<p>-c C                  Number of cores. (default: 1)</p>
+<p>-r R                  Percentage of simulations retained (see "numRetained"
+                      in ABCToolbox manual. (default: 20)</p>
+<p>-p P                  See "diracPeakWidth" in ABCToolbox manual. Default:
+                        1/(number of simulations) (default: None)</p>

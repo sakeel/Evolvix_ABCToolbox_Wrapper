@@ -99,7 +99,10 @@ def main():
     PERCENT_RETAINED = args.r
 
     global PEAK_WIDTH
-    PEAK_WIDTH = args.p
+    if args.p:
+        PEAK_WIDTH = args.p
+    else:
+        PEAK_WIDTH = float(1)/float(N_SIMS)
 
     if args.recover:
         htcondorSubmitDAGFile()
@@ -128,7 +131,7 @@ def parseArgs():
     parser.add_argument('-n', type=int, help='Number of simulations.')
     parser.add_argument('-c', type=int, help='Number of cores.', default=1)
     parser.add_argument('-r', type=int, help='Percentage of simulations retained (see "numRetained" in ABCToolbox manual.', default=20)
-    parser.add_argument('-p', type=float, help='See "diracPeakWidth" in ABCToolbox manual.', default=20)
+    parser.add_argument('-p', type=float, help='See "diracPeakWidth" in ABCToolbox manual. Default: 1/(number of simulations)')
     parser.add_argument('quest', type=str, help='Name of the quest')
     args = parser.parse_args()
     return args
@@ -227,7 +230,7 @@ def runLocally(args):
 
     if args.estimate or not STAGE_FLAGS_USED:
         # estimate based on the distance of the samples generated
-        runEstimator(args.quest)
+        runEstimator(args.quest, args.c)
 
     #even when using condor, it runs it locally to do the estimation
     #so taking the snapshot here still works for running on condor
@@ -337,10 +340,10 @@ def cleanupChildren(procs):
 
 
 #**********************************************************************#
-def runEstimator(QST_NAME):
+def runEstimator(QST_NAME, nCores):
     if not os.path.isdir(EST_DIR) : os.mkdir(EST_DIR)
 
-    estimatorFileName = writeEstimatorFile(QST_NAME)
+    estimatorFileName = writeEstimatorFile(QST_NAME, nCores)
     shutil.copy(SAM_DIR + '/data.obs', EST_DIR)
     shutil.copyfile(SAM_FILE, EST_DIR + '/out.txt_sampling1.txt')
     
@@ -353,9 +356,9 @@ def runEstimator(QST_NAME):
 
 
 #**********************************************************************#
-def writeEstimatorFile(QST_NAME):
+def writeEstimatorFile(QST_NAME, nCores):
     replacements = {'N_PARAMS' : ','.join(map(str, range(2, getNumParams(QST_NAME)+2)))}
-    replacements['N_SIMS'] = str(N_SIMS)
+    replacements['N_SIMS'] = str(N_SIMS + nCores)
     replacements['N_RETAINED'] = str(round(PERCENT_RETAINED/100.0*N_SIMS))
     replacements['PEAK_WIDTH'] = str(PEAK_WIDTH)
 
@@ -482,16 +485,18 @@ def combineSamples():
     if os.path.isdir(SAM_DIR):
         sampleFiles = [os.path.join(dir,f) for dir in listDirs(SAM_DIR) if os.path.isfile(os.path.join(dir, f))] 
 
-    if not os.path.isfile(SAM_FILE):
+    combinedSamplesFile = None
+    for sampleFile in sampleFiles:
         if len(sampleFiles) == 0:
             raise Exception('Could not find any samples. Check for ' + f + ' in the numbered jobs directories.')
-        for sampleFile in sampleFiles:
-            # If the combined sample doesn't exist yet, copy over the first sample file to use
+
+        # If the combined sample doesn't exist yet, copy over the first sample file to use
+        if not os.path.isfile(SAM_FILE):
             shutil.copyfile(sampleFile, SAM_FILE)
             combinedSamplesFile = open(SAM_FILE, 'a')
-
         else:
-        # The combined sample file already exists, so just read the sample file and append the content
+            #The combined sample file by this point
+            #so just read the sample file and append the content
             nextFile = open(sampleFile)
             nextFile.readline()
             print(''.join(nextFile.readlines()), file=combinedSamplesFile)
@@ -499,6 +504,7 @@ def combineSamples():
 
         # Rename the file in case something goes wrong later, so we don't duplicate samples on the next combine
         os.rename(sampleFile, 'processed_out.txt_sampling1.txt')
+    combinedSamplesFile.close()
     print('done combining the samples')
 
 

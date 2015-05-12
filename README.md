@@ -135,3 +135,50 @@ Running on Condor
 
 If you run <code>condor_q</code> and do not see any of your jobs, then they are
 completed.
+
+run.py help menu
+--------------------------
+usage: run.py [-h] [--htcondor] [--sample] [--combine] [--estimate]
+              [--recover] [--distance DISTANCE] [--working-dir WORKING_DIR]
+              [-n N] [-c C] [-r R] [-p P]
+              quest
+
+Run ABC.
+
+positional arguments:
+
+quest                 Name of the quest
+
+optional arguments:
+
+-h, --help            show this help message and exit
+
+--htcondor            Run the simulations on HTCondor (default: False)
+
+--sample              Generate the samples only. (default: False)
+
+--combine             Won't generate samples, just combines any existing
+                      samples into the sample file. (default: False)
+
+--estimate            Use an existing sample file to estimate parameters.
+                      (default: False)
+
+--recover             Tries to recover in case of early termination. Valid
+                      only with runs using --htcondor (default: False)
+
+--distance DISTANCE   Distance to use. Options: geometric, L2, normalizedL2
+                      (default: L2)
+
+--working-dir WORKING_DIR
+                      Specify a working directory to use. Overrides use of a
+                      timestamp. (default: None)
+
+-n N                  Number of simulations. (default: None)
+
+-c C                  Number of cores. (default: 1)
+
+-r R                  Percentage of simulations retained (see "numRetained"
+                      in ABCToolbox manual. (default: 20)
+
+-p P                  See "diracPeakWidth" in ABCToolbox manual. Default:
+                        1/(number of simulations) (default: None)
