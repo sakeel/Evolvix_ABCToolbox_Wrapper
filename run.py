@@ -101,13 +101,11 @@ def main():
     global PEAK_WIDTH
     if args.p:
         PEAK_WIDTH = args.p
-    else:
-        PEAK_WIDTH = float(1)/float(N_SIMS)
 
     if args.recover:
         htcondorSubmitDAGFile()
         sys.exit(0)
-    
+
     if args.combine:
         combineSamples()
         cleanSampleDir(True)
@@ -147,7 +145,7 @@ def takeSnapshot(args):
     try:
         os.mkdir(snapshotDir)
     except OSError:
-        raise Exception('The directory ' + snapshotDir + ' already exists.'
+        raise Exception('The directory ' + snapshotDir + ' already exists. '
                         'Wait at least 1 second between run.py commands.')
 
     map(lambda file: shutil.copyfile(os.path.join(BIN_DIR, file),
@@ -217,8 +215,8 @@ def validateArgs(args):
         raise Exception('--recover can not be used with other stage flags (e.g. --sample, --combine, or --estimate)')
     if (args.recover and not os.path.isfile('{0}/{1}.dag'.format(DAG_DIR,args.quest))):
         raise Exception('--recover can only be used with quests with an existing dag file. No existing dag file found.')
-    if (args.estimate and (not (args.sample or args.combine) or os.path.isfile('{0}/samples.txt'.format(DAG_DIR,args.quest)))):
-        raise Exception('--estimate requires samples to have already been generated or to be called with an action that will generate samples.')
+    #if (args.estimate and (not (args.sample or args.combine) or os.path.isfile('{0}/samples.txt'.format(DAG_DIR,args.quest)))):
+    #    raise Exception('--estimate requires samples to have already been generated or to be called with an action that will generate samples.')
 
 
 #**********************************************************************#
@@ -230,7 +228,7 @@ def runLocally(args):
 
     if args.estimate or not STAGE_FLAGS_USED:
         # estimate based on the distance of the samples generated
-        runEstimator(args.quest, args.c)
+        runEstimator(args.quest)
 
     #even when using condor, it runs it locally to do the estimation
     #so taking the snapshot here still works for running on condor
@@ -308,10 +306,9 @@ def writeSamplerFile(QST_NAME, simsPerCore, htcondor = False):
 
 #**********************************************************************#
 def runSamplerLocally(QST_NAME, nCores):
-
     procs = []
-
     samplerInput = os.path.join(SAM_DIR, QST_NAME + 'Sampler.input')
+    samplerInput = os.path.abspath(samplerInput)
     for i in range(0, nCores):
         p = Process(target = execSampler, args=(i, samplerInput))
         procs.append(p)
@@ -340,12 +337,18 @@ def cleanupChildren(procs):
 
 
 #**********************************************************************#
-def runEstimator(QST_NAME, nCores):
+def runEstimator(QST_NAME):
     if not os.path.isdir(EST_DIR) : os.mkdir(EST_DIR)
 
-    estimatorFileName = writeEstimatorFile(QST_NAME, nCores)
     shutil.copy(SAM_DIR + '/data.obs', EST_DIR)
-    shutil.copyfile(SAM_FILE, EST_DIR + '/out.txt_sampling1.txt')
+    combinedSamples = os.path.join(EST_DIR + '/out.txt_sampling1.txt')
+    shutil.copyfile(SAM_FILE, combinedSamples)
+
+    nSamples = None
+    with open(combinedSamples) as f:
+        f.readline() #skip the header
+        nSamples = sum(1 for line in f) 
+    estimatorFileName = writeEstimatorFile(QST_NAME, nSamples)
     
     questPath = os.path.join(QST_DIR, '{0}Quest.txt'.format(QST_NAME))
     trueParamsValsPath = os.path.join(EST_DIR, 'true_param_vals.txt')
@@ -356,10 +359,15 @@ def runEstimator(QST_NAME, nCores):
 
 
 #**********************************************************************#
-def writeEstimatorFile(QST_NAME, nCores):
+def writeEstimatorFile(QST_NAME, nSamples):
     replacements = {'N_PARAMS' : ','.join(map(str, range(2, getNumParams(QST_NAME)+2)))}
-    replacements['N_SIMS'] = str(N_SIMS + nCores)
-    replacements['N_RETAINED'] = str(round(PERCENT_RETAINED/100.0*N_SIMS))
+    replacements['N_SIMS'] = str(math.pow(10, 8)) #ABCEstimator stops working after ~10^8
+    replacements['N_RETAINED'] = str(round(PERCENT_RETAINED/100.0*nSamples))
+
+    global PEAK_WIDTH
+    if not PEAK_WIDTH:
+        PEAK_WIDTH = 1/float(nSamples)
+        print(PEAK_WIDTH)
     replacements['PEAK_WIDTH'] = str(PEAK_WIDTH)
 
     inputFilePath = os.path.join(EST_DIR, QST_NAME + 'Estimator.input')
@@ -377,7 +385,6 @@ def getNumParams(QST_NAME):
 
 #**********************************************************************#
 def callEstimator(estimatorFileName):
-
     try:
         subprocess.check_call([BIN_DIR + '/ABCestimator', estimatorFileName], cwd=EST_DIR, stdin=None, stdout=None, stderr=None, shell=False)
     except subprocess.CalledProcessError:
@@ -388,7 +395,6 @@ def callEstimator(estimatorFileName):
 
 #**********************************************************************#
 def callPlotScript(estimatorFileName):
-
     try:
         subprocess.check_call(['Rscript', BIN_DIR + '/plotPosteriorsGLM.r', estimatorFileName], cwd=EST_DIR, stdin=None, stdout=None, stderr=None, shell=False)
     except subprocess.CalledProcessError:
@@ -399,20 +405,19 @@ def callPlotScript(estimatorFileName):
 
 #**********************************************************************#
 def runOnHTCondor(args):
-    
+    #condor complains if there's are any existing dag files
+    shutil.rmtree(DAG_DIR, ignore_errors = True)
+
     if args.sample or not STAGE_FLAGS_USED:
     # run sampler and combine output
         prepSamplerFiles(args.quest, args.n, args.c, True)
         makeRunDirs(args.c)
-
     htcondorBuildDAGFile(args)
-
     htcondorSubmitDAGFile()
 
 
 #**********************************************************************#
 def htcondorBuildDAGFile(args):
-   
     if args.c > 10000:
         raise Exception('The run.py script is currently not capable of running more than 10,000 threads concurrently.')
 
@@ -422,7 +427,6 @@ def htcondorBuildDAGFile(args):
     dagFile.write(htcondorDagFileHeader(args.quest))
     dagFile.write(htcondorGenerateSampleJobLines(args.quest, args.c))
     dagFile.write(htcondorGenerateEstimateJobLines(args.quest))
-
     dagFile.close()
 
 
@@ -477,40 +481,46 @@ def htcondorSubmitDAGFile():
 
 #**********************************************************************#
 def combineSamples():
-    print('combining all of the samples in the file ' + SAM_FILE)
-    if os.path.isfile(SAM_FILE) : combinedSamplesFile = open(SAM_FILE, 'a')
-    
+    print('Combining all of the samples into the file ' + SAM_FILE)
+
+    if not os.path.isdir(SAM_DIR):
+        raise Exception('Cannot find the samples directory: ' + SAM_DIR)
+
     sampleFiles = {}    
-    f = 'out.txt_sampling1.txt'
-    if os.path.isdir(SAM_DIR):
-        sampleFiles = [os.path.join(dir,f) for dir in listDirs(SAM_DIR) if os.path.isfile(os.path.join(dir, f))] 
+    sampleFileName = 'out.txt_sampling1.txt'
+    sampleFiles = [os.path.join(dir,sampleFileName)
+                   for dir in listDirs(SAM_DIR)
+                   if os.path.isfile(os.path.join(dir, sampleFileName))] 
 
-    combinedSamplesFile = None
-    for sampleFile in sampleFiles:
-        if len(sampleFiles) == 0:
-            raise Exception('Could not find any samples. Check for ' + f + ' in the numbered jobs directories.')
+    if len(sampleFiles) == 0:
+        raise Exception('Could not find any samples. Check for '
+                         + sampleFileName
+                         + ' in the numbered jobs directories. '
+                         + 'Did you already combine the samples?')
 
-        # If the combined sample doesn't exist yet, copy over the first sample file to use
-        if not os.path.isfile(SAM_FILE):
-            shutil.copyfile(sampleFile, SAM_FILE)
-            combinedSamplesFile = open(SAM_FILE, 'a')
-        else:
-            #The combined sample file by this point
-            #so just read the sample file and append the content
-            nextFile = open(sampleFile)
-            nextFile.readline()
-            print(''.join(nextFile.readlines()), file=combinedSamplesFile)
-            nextFile.close()
+    #need to copy the header from one of the sample files to the combined file
+    if not os.path.isfile(SAM_FILE):
+        with open(SAM_FILE, 'w') as combinedSamples:
+            with open(sampleFiles[0], 'r') as sampleFile:
+                header = sampleFile.readline()
+                print(header, file=combinedSamples, end='')
 
-        # Rename the file in case something goes wrong later, so we don't duplicate samples on the next combine
-        os.rename(sampleFile, 'processed_out.txt_sampling1.txt')
-    combinedSamplesFile.close()
-    print('done combining the samples')
+    with open(SAM_FILE, 'a') as combinedSamples:
+        for sampleFile in sampleFiles:
+            with open(sampleFile, 'r') as nextFile:
+                nextFile.readline()
+                print(''.join(nextFile.readlines()), file=combinedSamples, end='')
+            print('Done processing ' + os.path.abspath(sampleFile))
+            os.remove(sampleFile)
+    print('Done combining the samples')
 
 
 #**********************************************************************#
 def makeRunDirs(nCores):
-    for i in range(0, nCores) : os.mkdir(os.path.join(SAM_DIR, str(i)))
+    for i in range(0, nCores) :
+        path = os.path.join(SAM_DIR, str(i))
+        shutil.rmtree(path, ignore_errors = True)
+        os.mkdir(path)
 
 
 #**********************************************************************#
@@ -522,7 +532,7 @@ def prepRunDirs(nCores):
     
     for i in range(nCores) :
         runDir = os.path.join(SAM_DIR, str(i))
-        os.mkdir(runDir)
+        if not os.path.exists(runDir): os.mkdir(runDir)
         for f in srcFiles:
             shutil.copy(f, runDir)
 
@@ -578,7 +588,7 @@ def listDirs(dirPath):
 
 #**********************************************************************#
 def listFiles(dirPath):
-    return [os.path.join(dirPath, f) for f in os.listdir(dirPath) if os.path.isfile(os.path.join(dirPath, f))]
+    return [os.path.abspath(os.path.join(dirPath, f)) for f in os.listdir(dirPath) if os.path.isfile(os.path.join(dirPath, f))]
 
 
 #**********************************************************************#
