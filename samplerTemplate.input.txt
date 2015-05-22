@@ -1,7 +1,7 @@
 samplerType standard
 estName PRIORS_FILE 
 outName out.txt
-obsName data.obs
+obsName target_distance.txt
 nbSims N_SIMS 
 writeHeader 1
 separateOutputFiles 0

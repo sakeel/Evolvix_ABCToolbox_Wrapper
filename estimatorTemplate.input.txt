@@ -1,6 +1,6 @@
 estimationType standard
-simName	out.txt_sampling1.txt
-obsName	data.obs
+simName	SAMPLES
+obsName	target_distance.txt
 params N_PARAMS 
 numRetained N_RETAINED
 maxReadSims N_SIMS

@@ -77,6 +77,7 @@ def main():
     global QST_NAME
     global QST_DIR
     QST_NAME = args.quest 
+
     QST_DIR = os.path.abspath('{0}/../quests/{1}'.format(BIN_DIR, QST_NAME))
 
     global WRK_DIR
@@ -108,7 +109,6 @@ def main():
 
     if args.combine:
         combineSamples()
-        cleanSampleDir(True)
     
     if args.htcondor : runOnHTCondor(args)
     else             : runLocally(args)
@@ -126,6 +126,7 @@ def parseArgs():
     parser.add_argument('--distance', type=str, help='Distance to use. Options: ' \
                         + (', ').join(dist.distFuncs.keys()), default='L2')
     parser.add_argument('--working-dir', type=str, help='Specify a working directory to use. Overrides use of a timestamp.')
+    parser.add_argument('--comment', type=str, help='Add a comment to the run\'s directory name.', default='')
     parser.add_argument('-n', type=int, help='Number of simulations.')
     parser.add_argument('-c', type=int, help='Number of cores.', default=1)
     parser.add_argument('-r', type=int, help='Percentage of simulations retained (see "numRetained" in ABCToolbox manual.', default=20)
@@ -138,8 +139,9 @@ def parseArgs():
 #**********************************************************************#
 def takeSnapshot(args):
     print('taking a snapshot')
-    timeStamp = datetime.fromtimestamp(time.time()).strftime('{0}_%Y-%m-%d_%Hh%Mm%Ss'.format(QST_NAME))
-    snapshotDir = os.path.join(QST_DIR, timeStamp)
+    timeStamp = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
+    snapshotDir = os.path.join(QST_DIR, '{0}_{2}_{1:.0e}_runs_{3}'.format(QST_NAME, float(args.n), timeStamp, args.comment))
+
 
     #fail if snapshotdirAlready exists, just wait a second to run run.py again
     try:
@@ -215,8 +217,6 @@ def validateArgs(args):
         raise Exception('--recover can not be used with other stage flags (e.g. --sample, --combine, or --estimate)')
     if (args.recover and not os.path.isfile('{0}/{1}.dag'.format(DAG_DIR,args.quest))):
         raise Exception('--recover can only be used with quests with an existing dag file. No existing dag file found.')
-    #if (args.estimate and (not (args.sample or args.combine) or os.path.isfile('{0}/samples.txt'.format(DAG_DIR,args.quest)))):
-    #    raise Exception('--estimate requires samples to have already been generated or to be called with an action that will generate samples.')
 
 
 #**********************************************************************#
@@ -250,7 +250,7 @@ def prepSamplerFiles(QST_NAME, nSims, nCores, htcondor = False):
     writeSamplerFile(QST_NAME, getSimsPerCore(nSims, nCores), htcondor)
     shutil.copy(os.path.join(QST_DIR, QST_NAME + 'Priors.est'), SAM_DIR)
     shutil.copy(os.path.join(QST_DIR, QST_NAME + 'Data.txt'), SAM_DIR)
-    shutil.copy(os.path.join(BIN_DIR, 'data.obs'), SAM_DIR)
+    shutil.copy(os.path.join(BIN_DIR, 'target_distance.txt'), SAM_DIR)
 
 
 #**********************************************************************#
@@ -299,15 +299,15 @@ def writeSamplerFile(QST_NAME, simsPerCore, htcondor = False):
     if htcondor : replacements['SRC_DIR'] = '.'
     else :        replacements['SRC_DIR'] = BIN_DIR
 
-    inputFilePath = os.path.join(SAM_DIR, QST_NAME + 'Sampler.input')
-    writeInputFile(BIN_DIR + '/samplerTemplate.input', inputFilePath, replacements)
+    inputFilePath = os.path.join(SAM_DIR, QST_NAME + 'Sampler.input.txt')
+    writeInputFile(BIN_DIR + '/samplerTemplate.input.txt', inputFilePath, replacements)
     return os.path.basename(inputFilePath) 
 
 
 #**********************************************************************#
 def runSamplerLocally(QST_NAME, nCores):
     procs = []
-    samplerInput = os.path.join(SAM_DIR, QST_NAME + 'Sampler.input')
+    samplerInput = os.path.join(SAM_DIR, QST_NAME + 'Sampler.input.txt')
     samplerInput = os.path.abspath(samplerInput)
     for i in range(0, nCores):
         p = Process(target = execSampler, args=(i, samplerInput))
@@ -340,10 +340,9 @@ def cleanupChildren(procs):
 def runEstimator(QST_NAME):
     if not os.path.isdir(EST_DIR) : os.mkdir(EST_DIR)
 
-    shutil.copy(SAM_DIR + '/data.obs', EST_DIR)
-    combinedSamples = os.path.join(EST_DIR + '/out.txt_sampling1.txt')
-    shutil.copyfile(SAM_FILE, combinedSamples)
+    shutil.copy(SAM_DIR + '/target_distance.txt', EST_DIR)
 
+    combinedSamples = os.path.join(SAM_DIR + '/samples.txt')
     nSamples = None
     with open(combinedSamples) as f:
         f.readline() #skip the header
@@ -360,7 +359,9 @@ def runEstimator(QST_NAME):
 
 #**********************************************************************#
 def writeEstimatorFile(QST_NAME, nSamples):
-    replacements = {'N_PARAMS' : ','.join(map(str, range(2, getNumParams(QST_NAME)+2)))}
+    replacements = {}
+    replacements['SAMPLES'] = os.path.abspath(SAM_FILE)
+    replacements['N_PARAMS'] = ','.join(map(str, range(2, getNumParams(QST_NAME)+2)))
     replacements['N_SIMS'] = str(math.pow(10, 8)) #ABCEstimator stops working after ~10^8
     replacements['N_RETAINED'] = str(round(PERCENT_RETAINED/100.0*nSamples))
 
@@ -370,8 +371,8 @@ def writeEstimatorFile(QST_NAME, nSamples):
         print(PEAK_WIDTH)
     replacements['PEAK_WIDTH'] = str(PEAK_WIDTH)
 
-    inputFilePath = os.path.join(EST_DIR, QST_NAME + 'Estimator.input')
-    writeInputFile(BIN_DIR + '/estimatorTemplate.input', inputFilePath, replacements)
+    inputFilePath = os.path.join(EST_DIR, QST_NAME + 'Estimator.input.txt')
+    writeInputFile(BIN_DIR + '/estimatorTemplate.input.txt', inputFilePath, replacements)
     return os.path.basename(inputFilePath)
 
 
@@ -449,7 +450,7 @@ def htcondorGenerateSampleJobLines(QST_NAME, nCores):
 
     submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
 
-    return htcondorJobSpecificLines(nCores, submitFile, QST_NAME + 'Sampler.input', inputFiles)
+    return htcondorJobSpecificLines(nCores, submitFile, QST_NAME + 'Sampler.input.txt', inputFiles)
 
 
 #**********************************************************************#
@@ -511,7 +512,6 @@ def combineSamples():
                 nextFile.readline()
                 print(''.join(nextFile.readlines()), file=combinedSamples, end='')
             print('Done processing ' + os.path.abspath(sampleFile))
-            os.remove(sampleFile)
     print('Done combining the samples')
 
 
