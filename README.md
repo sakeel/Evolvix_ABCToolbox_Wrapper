@@ -64,7 +64,7 @@ Next, go into the Evolvix repository and run *Evolvix_ABCToolbox_Wrapper*:
 
  Go to the ABC working directory:
  
-        cd  .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.1.0/
+        cd  .../[EVOLVIX_HOME]/Build/Packages/Evolvix_ABCToolbox_Wrapper/0.X.0/
         
 Now you are all set to run ABC.  Try running ABC on the birth model to test the
 build in the folder above::
