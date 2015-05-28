@@ -57,10 +57,10 @@ def main():
     setDistanceFunc(args.distance)
 
     paramsArg = getParamsArg()
-    if os.path.isfile('Worker_SSA_SDM'):
-        workerPath = './Worker_SSA_SDM'
+    if os.path.isfile('Worker_MultiWorker'):
+        workerPath = './Worker_MultiWorker'
     else:
-        workerPath = BIN_DIR + '/Worker_SSA_SDM'
+        workerPath = BIN_DIR + '/Worker_MultiWorker'
  
     os.system('{0} {1}Quest.epb {2} >> /dev/null'.format(workerPath, QUEST_NAME, paramsArg))
 

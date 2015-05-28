@@ -446,7 +446,7 @@ def htcondorGenerateSampleJobLines(QST_NAME, nCores):
     inputFiles += ',{0}/sim.py'.format(BIN_DIR)
     inputFiles += ',{0}/dist.py'.format(BIN_DIR)
     inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
-    inputFiles += ',{0}/Worker_SSA_SDM'.format(BIN_DIR)
+    inputFiles += ',{0}/Worker_MultiWorker'.format(BIN_DIR)
 
     submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
 
