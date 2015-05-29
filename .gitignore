@@ -3,6 +3,7 @@
 /plotPosteriorsGLM.r
 /Worker_SSA_SDM
 /Worker_DAE_IDAS_Dense
+/Worker_MultiWorker
 /Evolvix
 /Evolvix_Log.txt
 /argparse.pyc

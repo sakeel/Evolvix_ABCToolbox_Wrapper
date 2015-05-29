@@ -108,7 +108,11 @@ def main():
         sys.exit(0)
 
     if args.combine:
-        combineSamples()
+        try:
+            combineSamples()
+        except:
+            if not args.sample:
+                raise
 
     if args.htcondor : runOnHTCondor(args)
     else             : runLocally(args)
@@ -429,7 +433,7 @@ def htcondorBuildDAGFile(args):
 
     # Check if we need to run the simulations
     if args.sample or RUN_ALL_STEPS:
-        dagFile.write(htcondorGenerateSampleJobLines(args.quest, args.c))
+        dagFile.write(htcondorGenerateSampleJobLines(args.quest, args.c) + '\n\n')
 
     # Check to see if we need to run the combine step and decide where to put it
     # PRE or POST is arbitrary if all the steps need to be run
@@ -441,11 +445,11 @@ def htcondorBuildDAGFile(args):
             script_type = 'PRE'
             job_name = 'Evolvix_PE_Estimate'
 
-        dagFile.write(htcondorGenerateCombineScriptLines(script_type, job_name, args.quest))
+        dagFile.write(htcondorGenerateCombineScriptLines(script_type, job_name, args.quest) + '\n\n')
 
     # Check if we need to run the estimator
     if args.estimate or RUN_ALL_STEPS:
-        dagFile.write(htcondorGenerateEstimateJobLines(args.quest))
+        dagFile.write(htcondorGenerateEstimateJobLines(args.quest) + '\n\n')
 
     dagFile.close()
 
@@ -488,7 +492,7 @@ def htcondorSampleJobSpecificLines(jobName, submitFile, nCores, inputFileName, i
 
 
 #**********************************************************************#
-def htcondorGenerateEstimateJobLines(QST_NAME, nCores):
+def htcondorGenerateEstimateJobLines(QST_NAME):
     
     inputFiles  = SAM_DIR
     inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
@@ -496,7 +500,7 @@ def htcondorGenerateEstimateJobLines(QST_NAME, nCores):
     
     submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
     
-    return htcondorSampleJobSpecificLines('Evolvix_PE_Estimate', submitFile, inputFiles)
+    return htcondorEstimateJobSpecificLines('Evolvix_PE_Estimate', submitFile, inputFiles)
 
 
 #**********************************************************************#
@@ -514,13 +518,24 @@ def htcondorEstimateJobSpecificLines(jobName, submitFile, inputFiles):
 
 #**********************************************************************#
 def htcondorGenerateCombineScriptLines(SCRIPT_TYPE, JOB_NAME, QST_NAME):
-    return '\nSCRIPT {0} {1} /usr/bin/env python {2}/run.py '\
-        '--combine {3} --working-dir {4}\n'.format(SCRIPT_TYPE, JOB_NAME, BIN_DIR, QST_NAME, WRK_DIR)
+    
+    if SCRIPT_TYPE == 'PRE':
+        combine_lines = '#######################################################\n\n'
+    else:
+        combine_lines = ''
+    
+    combine_lines += 'SCRIPT {0} {1} /usr/bin/env python {2}/run.py '\
+        '--combine {3} --working-dir {4}'.format(SCRIPT_TYPE, JOB_NAME, BIN_DIR, QST_NAME, WRK_DIR)
+
+    if SCRIPT_TYPE == 'POST':
+        combine_lines += '\n\n#######################################################\n'
+
+    return combine_lines
 
 
 #**********************************************************************#
 def htcondorGenerateEstimateJobLines_old(QST_NAME):
-    return '\nSCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py ' \
+    return 'SCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py ' \
         '--combine --estimate {1} --working-dir {2}\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
 
 
