@@ -66,7 +66,7 @@ N_SIMS = None
 PERCENT_RETAINED = None
 PEAK_WIDTH = None
 
-STAGE_FLAGS_USED = False
+RUN_ALL_STEPS = True
 
 
 #**********************************************************************#
@@ -109,7 +109,7 @@ def main():
 
     if args.combine:
         combineSamples()
-    
+
     if args.htcondor : runOnHTCondor(args)
     else             : runLocally(args)
 
@@ -167,7 +167,6 @@ def takeSnapshot(args):
 
 #**********************************************************************#
 
-
 def setUpGlobalVars():
     global HST_DIR
     global SAM_DIR
@@ -206,14 +205,12 @@ def verifyQuestFilesExist(QST_NAME):
 
 #**********************************************************************#
 def validateArgs(args):
-    global STAGE_FLAGS_USED
-    STAGE_FLAGS_USED =  (args.sample or args.combine or args.estimate)
-    if args.sample or not STAGE_FLAGS_USED:
+    global RUN_ALL_STEPS
+    RUN_ALL_STEPS =  not (args.sample or args.combine or args.estimate)
+    if args.sample or RUN_ALL_STEPS:
         if args.n <= 0: raise Exception('Number of simulations must be greater than zero.')
         if args.c <= 0: raise Exception('Number of cores must be greater than zero.')
-    if (args.htcondor and not args.sample and (args.combine or args.estimate)):
-        raise Exception('--htcondor can not be used with flags --combine or --estimate. Just remove the --htcondor flag and run either or both of those stages locally (assuming sampling is already complete).')
-    if (args.recover and STAGE_FLAGS_USED):
+    if (args.recover and  not RUN_ALL_STEPS):
         raise Exception('--recover can not be used with other stage flags (e.g. --sample, --combine, or --estimate)')
     if (args.recover and not os.path.isfile('{0}/{1}.dag'.format(DAG_DIR,args.quest))):
         raise Exception('--recover can only be used with quests with an existing dag file. No existing dag file found.')
@@ -221,12 +218,12 @@ def validateArgs(args):
 
 #**********************************************************************#
 def runLocally(args):
-    if args.sample or not STAGE_FLAGS_USED:
+    if args.sample or RUN_ALL_STEPS:
         # run sampler and combine output
         runSampler(args.quest, args.n, args.c)
         combineSamples()
 
-    if args.estimate or not STAGE_FLAGS_USED:
+    if args.estimate or RUN_ALL_STEPS:
         # estimate based on the distance of the samples generated
         runEstimator(args.quest)
 
@@ -339,14 +336,14 @@ def cleanupChildren(procs):
 #**********************************************************************#
 def runEstimator(QST_NAME):
     if not os.path.isdir(EST_DIR) : os.mkdir(EST_DIR)
-
+    
     shutil.copy(SAM_DIR + '/target_distance.txt', EST_DIR)
-
+    
     combinedSamples = os.path.join(SAM_DIR + '/samples.txt')
     nSamples = None
     with open(combinedSamples) as f:
         f.readline() #skip the header
-        nSamples = sum(1 for line in f) 
+        nSamples = sum(1 for line in f)
     estimatorFileName = writeEstimatorFile(QST_NAME, nSamples)
     
     questPath = os.path.join(QST_DIR, '{0}Quest.txt'.format(QST_NAME))
@@ -409,8 +406,11 @@ def runOnHTCondor(args):
     #condor complains if there's are any existing dag files
     shutil.rmtree(DAG_DIR, ignore_errors = True)
 
-    if args.sample or not STAGE_FLAGS_USED:
-    # run sampler and combine output
+    # Catch the case where we only want to combine, and then just run locally
+    if args.combine and not (args.sample or args.estimate) :
+        combineSamples()
+    
+    elif args.sample or RUN_ALL_STEPS:
         prepSamplerFiles(args.quest, args.n, args.c, True)
         makeRunDirs(args.c)
     htcondorBuildDAGFile(args)
@@ -426,8 +426,27 @@ def htcondorBuildDAGFile(args):
 
     dagFile = open(DAG_FILE, 'w')
     dagFile.write(htcondorDagFileHeader(args.quest))
-    dagFile.write(htcondorGenerateSampleJobLines(args.quest, args.c))
-    dagFile.write(htcondorGenerateEstimateJobLines(args.quest))
+
+    # Check if we need to run the simulations
+    if args.sample or RUN_ALL_STEPS:
+        dagFile.write(htcondorGenerateSampleJobLines(args.quest, args.c))
+
+    # Check to see if we need to run the combine step and decide where to put it
+    # PRE or POST is arbitrary if all the steps need to be run
+    if args.combine or RUN_ALL_STEPS:
+        if args.sample or RUN_ALL_STEPS:
+            script_type = 'POST'
+            job_name = 'Evolvix_PE_Sample'
+        elif args.estimate:
+            script_type = 'PRE'
+            job_name = 'Evolvix_PE_Estimate'
+
+        dagFile.write(htcondorGenerateCombineScriptLines(script_type, job_name, args.quest))
+
+    # Check if we need to run the estimator
+    if args.estimate or RUN_ALL_STEPS:
+        dagFile.write(htcondorGenerateEstimateJobLines(args.quest))
+
     dagFile.close()
 
 
@@ -441,36 +460,69 @@ def htcondorDagFileHeader(QST_NAME):
 
 #**********************************************************************#
 def htcondorGenerateSampleJobLines(QST_NAME, nCores):
-
-    inputFiles  = ','.join(listFiles(SAM_DIR)) 
+    
+    inputFiles  = SAM_DIR
     inputFiles += ',{0}/sim.py'.format(BIN_DIR)
     inputFiles += ',{0}/dist.py'.format(BIN_DIR)
     inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
     inputFiles += ',{0}/Worker_MultiWorker'.format(BIN_DIR)
-
-    submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
-
-    return htcondorJobSpecificLines(nCores, submitFile, QST_NAME + 'Sampler.input.txt', inputFiles)
-
-
-#**********************************************************************#
-def htcondorGenerateEstimateJobLines(QST_NAME):
-    return '\nSCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py '\
-           '--combine --estimate {1} --working-dir {2}\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
-
-
-#**********************************************************************#
-def htcondorJobSpecificLines(nCores, submitFile, inputFileName, inputFiles):
-    jobName = 'Evolvix_PE_Sample'
-    allJobSpecificLines   = 'JOB {0} {1}\n'.format(jobName, submitFile)
-    allJobSpecificLines  += 'VARS {0} EVOLVIX_INITDIR="{1}"\n'.format(jobName, SAM_DIR)
-    allJobSpecificLines  += 'VARS {0} EVOLVIX_BIN="ABCsampler"\n'.format(jobName)
-    allJobSpecificLines  += 'VARS {0} EVOLVIX_BIN_DIR="{1}"\n'.format(jobName, BIN_DIR)
-    allJobSpecificLines  += 'VARS {0} EVOLVIX_INPUT_FILE_NAME="{1}"\n'.format(jobName, inputFileName)
-    allJobSpecificLines  += 'VARS {0} EVOLVIX_INPUT_FILES="{1}"\n'.format(jobName, inputFiles)
-    allJobSpecificLines  += 'VARS {0} EVOLVIX_NUM_THREADS="{1}"\n'.format(jobName, nCores)
-    return allJobSpecificLines
     
+    submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
+    
+    return htcondorSampleJobSpecificLines('Evolvix_PE_Sample', submitFile, nCores, QST_NAME + 'Sampler.input.txt', inputFiles)
+
+
+#**********************************************************************#
+def htcondorSampleJobSpecificLines(jobName, submitFile, nCores, inputFileName, inputFiles):
+
+    vars = 'VARS {0} '.format(jobName)
+    
+    allJobSpecificLines   = 'JOB {0} {1}\n'.format(jobName, submitFile)
+    allJobSpecificLines  += vars + 'EVOLVIX_INITDIR="{0}"\n'.format(SAM_DIR)
+    allJobSpecificLines  += vars + 'EVOLVIX_BIN="ABCsampler"\n'
+    allJobSpecificLines  += vars + 'EVOLVIX_BIN_DIR="{0}"\n'.format(BIN_DIR)
+    allJobSpecificLines  += vars + 'EVOLVIX_INPUT_FILE_NAME="{0}"\n'.format(inputFileName)
+    allJobSpecificLines  += vars + 'EVOLVIX_INPUT_FILES="{0}"\n'.format(inputFiles)
+    allJobSpecificLines  += vars + 'EVOLVIX_NUM_THREADS="{0}"\n'.format(nCores)
+    return allJobSpecificLines
+
+
+#**********************************************************************#
+def htcondorGenerateEstimateJobLines(QST_NAME, nCores):
+    
+    inputFiles  = SAM_DIR
+    inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
+    inputFiles += ',{0}/target_distance.txt'.format(SAM_DIR)
+    
+    submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
+    
+    return htcondorSampleJobSpecificLines('Evolvix_PE_Estimate', submitFile, inputFiles)
+
+
+#**********************************************************************#
+def htcondorEstimateJobSpecificLines(jobName, submitFile, inputFiles):
+    
+    vars = 'VARS {0} '.format(jobName)
+    
+    allJobSpecificLines   = 'JOB {0} {1}\n'.format(jobName, submitFile)
+    allJobSpecificLines  += vars + 'EVOLVIX_INITDIR="{0}"\n'.format(EST_DIR)
+    allJobSpecificLines  += vars + 'EVOLVIX_BIN="ABCEstimator"\n'
+    allJobSpecificLines  += vars + 'EVOLVIX_BIN_DIR="{0}"\n'.format(BIN_DIR)
+    allJobSpecificLines  += vars + 'EVOLVIX_INPUT_FILES="{0}"\n'.format(inputFiles)
+    return allJobSpecificLines
+
+
+#**********************************************************************#
+def htcondorGenerateCombineScriptLines(SCRIPT_TYPE, JOB_NAME, QST_NAME):
+    return '\nSCRIPT {0} {1} /usr/bin/env python {2}/run.py '\
+        '--combine {3} --working-dir {4}\n'.format(SCRIPT_TYPE, JOB_NAME, BIN_DIR, QST_NAME, WRK_DIR)
+
+
+#**********************************************************************#
+def htcondorGenerateEstimateJobLines_old(QST_NAME):
+    return '\nSCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py ' \
+        '--combine --estimate {1} --working-dir {2}\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
+
 
 #**********************************************************************#
 def htcondorSubmitDAGFile():
