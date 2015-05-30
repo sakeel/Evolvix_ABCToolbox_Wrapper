@@ -458,7 +458,8 @@ def htcondorBuildDAGFile(args):
 def htcondorDagFileHeader(QST_NAME):
     dagHeader = '# DAGMan file ({0}.dag) for quest {0}\n'.format(QST_NAME)
     dagHeader += '#\n#  *** This is an automatically generated file from the Evolvix run.py script. ***'
-    dagHeader += '\n#  *** Any changes to this file will be lost. ***\n\n\n'
+    dagHeader += '\n#  *** Any changes to this file will be lost. ***\n\n'
+    dagHeader += '#######################################################\n\n\n'
     return dagHeader
 
 
@@ -494,25 +495,30 @@ def htcondorSampleJobSpecificLines(jobName, submitFile, nCores, inputFileName, i
 #**********************************************************************#
 def htcondorGenerateEstimateJobLines(QST_NAME):
     
-    inputFiles  = SAM_DIR
-    inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
+    inputFiles  = '{0}/samples.txt'.format(SAM_DIR)
     inputFiles += ',{0}/target_distance.txt'.format(SAM_DIR)
+    inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
+    inputFiles += ',{0}/plotDistance.r'.format(BIN_DIR)
+    inputFiles += ',{0}/plotPosteriorsGLM.r'.format(BIN_DIR)
     
-    submitFile = os.path.join(BIN_DIR, 'evolvix_generic_condor.sub')
+    submitFile = os.path.join(BIN_DIR, 'evolvix_estimate.sub')
     
-    return htcondorEstimateJobSpecificLines('Evolvix_PE_Estimate', submitFile, inputFiles)
+    return htcondorEstimateJobSpecificLines('Evolvix_PE_Estimate', submitFile, inputFiles, htcondorEstimateRAMRequire())
 
 
 #**********************************************************************#
-def htcondorEstimateJobSpecificLines(jobName, submitFile, inputFiles):
+def htcondorEstimateJobSpecificLines(jobName, submitFile, inputFiles, ram_required):
     
     vars = 'VARS {0} '.format(jobName)
     
     allJobSpecificLines   = 'JOB {0} {1}\n'.format(jobName, submitFile)
-    allJobSpecificLines  += vars + 'EVOLVIX_INITDIR="{0}"\n'.format(EST_DIR)
-    allJobSpecificLines  += vars + 'EVOLVIX_BIN="ABCEstimator"\n'
+    allJobSpecificLines  += vars + 'EVOLVIX_BIN="python"\n'
+    allJobSpecificLines  += vars + 'EVOLVIX_ESTIMATE_ARGUMENTS="{0}/run.py {1}'\
+            ' --estimate --working-dir {2}"\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
+    allJobSpecificLines  += vars + 'EVOLVIX_INITDIR="{0}"\n'.format(WRK_DIR)
     allJobSpecificLines  += vars + 'EVOLVIX_BIN_DIR="{0}"\n'.format(BIN_DIR)
     allJobSpecificLines  += vars + 'EVOLVIX_INPUT_FILES="{0}"\n'.format(inputFiles)
+    allJobSpecificLines  += vars + 'EVOLVIX_RAM_REQUIRED="{0}"\n'.format(ram_required)
     return allJobSpecificLines
 
 
@@ -537,6 +543,11 @@ def htcondorGenerateCombineScriptLines(SCRIPT_TYPE, JOB_NAME, QST_NAME):
 def htcondorGenerateEstimateJobLines_old(QST_NAME):
     return 'SCRIPT POST Evolvix_PE_Sample /usr/bin/env python {0}/run.py ' \
         '--combine --estimate {1} --working-dir {2}\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
+
+
+#**********************************************************************#
+def htcondorEstimateRAMRequire():
+    return '10 GB'
 
 
 #**********************************************************************#

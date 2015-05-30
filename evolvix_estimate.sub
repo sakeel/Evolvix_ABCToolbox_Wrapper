@@ -1,0 +1,17 @@
+# Submit description file called:  evolvix_estimate.sub
+    executable     = $(EVOLVIX_BIN)
+    arguments      = $(EVOLVIX_ESTIMATE_ARGUMENTS)
+    universe       = vanilla
+    initialdir     = $(EVOLVIX_INITDIR)
+    request_memory = $(EVOLVIX_RAM_REQUIRED)
+    output         = ABCestimate.out
+    error          = ABCestimate.err
+    log            = ABCestimate.log
+    notification   = NEVER
+    transfer_input_files  = $(EVOLVIX_INPUT_FILES)
+    should_transfer_files = YES
+#    Requirements = (HAS_NUMPY =?= TRUE)
+    +WantFlocking = true
+    +WantGlideIn  = true
+    +Group        = "WID"
+    queue
