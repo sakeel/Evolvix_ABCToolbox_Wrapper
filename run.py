@@ -353,10 +353,9 @@ def runEstimator(QST_NAME):
     questPath = os.path.join(QST_DIR, '{0}Quest.txt'.format(QST_NAME))
     trueParamsValsPath = os.path.join(EST_DIR, 'true_param_vals.txt')
     writeTrueParamValsFile(questPath, trueParamsValsPath)
-    
+
     callEstimator(estimatorFileName)
     callPlotScript(estimatorFileName)
-
 
 #**********************************************************************#
 def writeEstimatorFile(QST_NAME, nSamples):
@@ -450,6 +449,9 @@ def htcondorBuildDAGFile(args):
     # Check if we need to run the estimator
     if args.estimate or RUN_ALL_STEPS:
         dagFile.write(htcondorGenerateEstimateJobLines(args.quest) + '\n\n')
+        # Add a line to create the dependency between sample and estimate, if needed
+        if args.sample or RUN_ALL_STEPS:
+            dagFile.write('PARENT Evolvix_PE_Sample CHILD Evolvix_PE_Estimate\n\n')
 
     dagFile.close()
 
@@ -466,7 +468,7 @@ def htcondorDagFileHeader(QST_NAME):
 #**********************************************************************#
 def htcondorGenerateSampleJobLines(QST_NAME, nCores):
     
-    inputFiles  = SAM_DIR
+    inputFiles  = ','.join(listFiles(SAM_DIR)) 
     inputFiles += ',{0}/sim.py'.format(BIN_DIR)
     inputFiles += ',{0}/dist.py'.format(BIN_DIR)
     inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
@@ -497,7 +499,9 @@ def htcondorGenerateEstimateJobLines(QST_NAME):
     
     inputFiles  = '{0}/samples.txt'.format(SAM_DIR)
     inputFiles += ',{0}/target_distance.txt'.format(SAM_DIR)
+    inputFiles += ',{0}/run.py'.format(BIN_DIR)
     inputFiles += ',{0}/argparse.py'.format(BIN_DIR)
+    inputFiles += ',{0}/dist.py'.format(BIN_DIR)
     inputFiles += ',{0}/plotDistance.r'.format(BIN_DIR)
     inputFiles += ',{0}/plotPosteriorsGLM.r'.format(BIN_DIR)
     
@@ -512,8 +516,8 @@ def htcondorEstimateJobSpecificLines(jobName, submitFile, inputFiles, ram_requir
     vars = 'VARS {0} '.format(jobName)
     
     allJobSpecificLines   = 'JOB {0} {1}\n'.format(jobName, submitFile)
-    allJobSpecificLines  += vars + 'EVOLVIX_BIN="python"\n'
-    allJobSpecificLines  += vars + 'EVOLVIX_ESTIMATE_ARGUMENTS="{0}/run.py {1}'\
+    allJobSpecificLines  += vars + 'EVOLVIX_BIN="/usr/bin/env"\n'
+    allJobSpecificLines  += vars + 'EVOLVIX_ESTIMATE_ARGUMENTS="python run.py {1}'\
             ' --estimate --working-dir {2}"\n'.format(BIN_DIR, QST_NAME, WRK_DIR)
     allJobSpecificLines  += vars + 'EVOLVIX_INITDIR="{0}"\n'.format(WRK_DIR)
     allJobSpecificLines  += vars + 'EVOLVIX_BIN_DIR="{0}"\n'.format(BIN_DIR)

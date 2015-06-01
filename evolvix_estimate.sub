@@ -10,6 +10,7 @@
     notification   = NEVER
     transfer_input_files  = $(EVOLVIX_INPUT_FILES)
     should_transfer_files = YES
+    transfer_executable = False
 #    Requirements = (HAS_NUMPY =?= TRUE)
     +WantFlocking = true
     +WantGlideIn  = true
