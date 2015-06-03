@@ -5,21 +5,18 @@ from area_dist import getAreaDist
 from linear_interp import LinearInterp
 
 class TestAreaDist(unittest.TestCase):
-    @unittest.skip('')
     def testNonequalStartingTimes(self):
         interps = TestAreaDist.getInterps([[(0,1), (2,1)], [(1,1), (2,2)]])
         self.assertRaisesRegexp(Exception,
                                 'same start time',
                                 lambda : getAreaDist(*interps))
 
-    @unittest.skip('')
     def testNonequalEndingTimes(self):
         interps = TestAreaDist.getInterps([[(0,1), (1,1)], [(0,1), (2,2)]])
         self.assertRaisesRegexp(Exception,
                                 'same end time',
                                 lambda : getAreaDist(*interps))
 
-    @unittest.skip('')
     def testConstantTS(self):
         interps = TestAreaDist.getInterps([[(0,1), (2,1)], [(0,4), (1,4), (2,4)]])
         self.assertEqual(6, getAreaDist(*interps))
