@@ -1,7 +1,7 @@
 import sys
 import math
 import inspect
-
+import area_dist
 
 def L2(obsData, simData):
     dist = 0
@@ -21,6 +21,11 @@ def geometric(obsData, simData):
         z = max(obsData[i],1)
         dist *= max(math.pow((simData[i] - obsData[i]), 2) / z, 1/z)
     return math.pow(dist, 1/len(obsData))
+
+def area(obsData, simData):
+    print(simData)
+    print(obsData)
+    return 1
 
 try:
     from rpy2.robjects import r
